@@ -1,21 +1,143 @@
 @extends('layouts.app')
 
+@section('title', 'Dashboard')
+
+@section('breadcrumb')
+    <li class="breadcrumb-item active">Dashboard</li>
+@endsection
+
 @section('content')
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">{{ __('Dashboard') }}</div>
+<!-- Metric Cards -->
+<div class="row">
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-info">
+            <div class="inner">
+                <h3>Rp {{ number_format($todaySales, 0, ',', '.') }}</h3>
+                <p>Today Sales (Omzet Hari Ini)</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-shopping-bag"></i>
+            </div>
+            <a href="{{ route('reports.sales') }}" class="small-box-footer">Lihat Rekap <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
 
-                <div class="card-body">
-                    @if (session('status'))
-                        <div class="alert alert-success" role="alert">
-                            {{ session('status') }}
-                        </div>
-                    @endif
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-success">
+            <div class="inner">
+                <h3>{{ $todayOrders }}</h3>
+                <p>Transactions (Transaksi Hari Ini)</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <a href="{{ route('pos.index') }}" class="small-box-footer">Ke Kasir POS <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
 
-                    {{ __('You are logged in!') }}
-                </div>
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-warning">
+            <div class="inner">
+                <h3>{{ $lowStockMaterials->count() }}</h3>
+                <p>Bahan Kritis (Stok &le; ROP)</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <a href="{{ route('materials.index') }}" class="small-box-footer">Cek Stok Bahan <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-danger">
+            <div class="inner">
+                <h3>{{ $pendingPurchases->count() }}</h3>
+                <p>Pending PO (Perlu Approval)</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-truck-loading"></i>
+            </div>
+            <a href="{{ route('purchases.index') }}" class="small-box-footer">Review PO <i class="fas fa-arrow-circle-right"></i></a>
+        </div>
+    </div>
+</div>
+
+<!-- Warning Section & Quick Tables -->
+<div class="row">
+    <!-- ROP Warning List -->
+    <div class="col-md-6">
+        <div class="card card-outline card-warning">
+            <div class="card-header">
+                <h3 class="card-title font-weight-bold text-danger">
+                    <i class="fas fa-bell mr-1"></i> Peringatan Stok Kritis (Reorder Point / ROP)
+                </h3>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th>Bahan Baku</th>
+                            <th>Sisa Stok (Resep)</th>
+                            <th>Batas ROP</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($lowStockMaterials as $mat)
+                            <tr>
+                                <td><strong>{{ $mat->name }}</strong></td>
+                                <td class="text-danger font-weight-bold">{{ number_format($mat->stock, 2) }} {{ $mat->recipe_unit }}</td>
+                                <td>{{ number_format($mat->reorder_point, 2) }} {{ $mat->recipe_unit }}</td>
+                                <td><span class="badge badge-danger">PERLU RESTOCK</span></td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">Semua bahan baku dalam kondisi aman di atas ROP.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending POs -->
+    <div class="col-md-6">
+        <div class="card card-outline card-primary">
+            <div class="card-header">
+                <h3 class="card-title font-weight-bold">
+                    <i class="fas fa-file-invoice-dollar mr-1"></i> Pengadaan Bahan Menunggu Approval
+                </h3>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th>No. PO</th>
+                            <th>Supplier</th>
+                            <th>Total Biaya</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($pendingPurchases as $po)
+                            <tr>
+                                <td><strong>{{ $po->invoice_number }}</strong></td>
+                                <td>{{ $po->supplier->name }}</td>
+                                <td>Rp {{ number_format($po->total_cost, 0, ',', '.') }}</td>
+                                <td>
+                                    <a href="{{ route('purchases.show', $po->id) }}" class="btn btn-primary btn-xs">
+                                        <i class="fas fa-check-circle"></i> Review
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">Tidak ada PO yang menunggu approval saat ini.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

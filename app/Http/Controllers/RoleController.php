@@ -10,6 +10,8 @@ use Spatie\Permission\Models\Permission;
 use DB;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
+use Yajra\DataTables\Facades\DataTables;
     
 class RoleController extends Controller
 {
@@ -31,11 +33,36 @@ class RoleController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
-        $roles = Role::orderBy('id','DESC')->paginate(5);
-        return view('roles.index',compact('roles'))
-            ->with('i', ($request->input('page', 1) - 1) * 5);
+        if ($request->ajax()) {
+            $roles = Role::with('permissions')->select('roles.*');
+
+            return DataTables::of($roles)
+                ->addIndexColumn()
+                ->addColumn('permissions', function($row){
+                    $count = $row->permissions->count();
+                    return '<span class="badge badge-info">' . $count . ' Permissions</span>';
+                })
+                ->addColumn('action', function($row){
+                    $showUrl = route('roles.show', $row->id);
+                    $editUrl = route('roles.edit', $row->id);
+                    $deleteUrl = route('roles.destroy', $row->id);
+
+                    $btn = '<a href="'.$showUrl.'" class="btn btn-info btn-sm mr-1" title="Show"><i class="fas fa-eye"></i></a>';
+                    if(auth()->user()->can('role-edit')){
+                        $btn .= '<a href="'.$editUrl.'" class="btn btn-primary btn-sm mr-1" title="Edit"><i class="fas fa-edit"></i></a>';
+                    }
+                    if(auth()->user()->can('role-delete')){
+                        $btn .= '<button type="button" class="btn btn-danger btn-sm btn-delete" data-url="'.$deleteUrl.'" title="Delete"><i class="fas fa-trash"></i></button>';
+                    }
+                    return $btn;
+                })
+                ->rawColumns(['permissions', 'action'])
+                ->make(true);
+        }
+
+        return view('roles.index');
     }
     
     /**
@@ -130,9 +157,15 @@ class RoleController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id): RedirectResponse
+    public function destroy(Request $request, $id)
     {
         DB::table("roles")->where('id',$id)->delete();
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Role deleted successfully'
+            ]);
+        }
         return redirect()->route('roles.index')
                         ->with('success','Role deleted successfully');
     }

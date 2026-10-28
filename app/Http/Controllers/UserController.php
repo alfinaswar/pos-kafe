@@ -11,6 +11,8 @@ use Hash;
 use Illuminate\Support\Arr;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
+use Yajra\DataTables\Facades\DataTables;
     
 class UserController extends Controller
 {
@@ -19,11 +21,36 @@ class UserController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|\Illuminate\Http\JsonResponse
     {
-        $data = User::orderBy('id','DESC')->paginate(5);
-        return view('users.index',compact('data'))
-            ->with('i', ($request->input('page', 1) - 1) * 5);
+        if ($request->ajax()) {
+            $users = User::with('roles')->select('users.*');
+
+            return DataTables::of($users)
+                ->addIndexColumn()
+                ->addColumn('roles', function($row){
+                    $badges = '';
+                    foreach($row->roles as $role){
+                        $badges .= '<span class="badge badge-success mr-1">' . e($role->name) . '</span>';
+                    }
+                    return $badges ?: '<span class="badge badge-secondary">No Role</span>';
+                })
+                ->addColumn('action', function($row){
+                    $showUrl = route('users.show', $row->id);
+                    $editUrl = route('users.edit', $row->id);
+                    $deleteUrl = route('users.destroy', $row->id);
+                    $csrf = csrf_token();
+                    return '
+                        <a href="'.$showUrl.'" class="btn btn-info btn-sm mr-1" title="Show"><i class="fas fa-eye"></i></a>
+                        <a href="'.$editUrl.'" class="btn btn-primary btn-sm mr-1" title="Edit"><i class="fas fa-edit"></i></a>
+                        <button type="button" class="btn btn-danger btn-sm btn-delete" data-url="'.$deleteUrl.'" title="Delete"><i class="fas fa-trash"></i></button>
+                    ';
+                })
+                ->rawColumns(['roles', 'action'])
+                ->make(true);
+        }
+
+        return view('users.index');
     }
     
     /**
@@ -128,9 +155,15 @@ class UserController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id): RedirectResponse
+    public function destroy(Request $request, $id)
     {
         User::find($id)->delete();
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'User deleted successfully'
+            ]);
+        }
         return redirect()->route('users.index')
                         ->with('success','User deleted successfully');
     }
