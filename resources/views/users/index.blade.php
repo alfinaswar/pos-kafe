@@ -39,6 +39,7 @@
                         <th>No</th>
                         <th>Name</th>
                         <th>Email</th>
+                        <th>Outlet</th>
                         <th>Roles</th>
                         <th style="width: 120px;">Action</th>
                     </tr>
@@ -67,6 +68,7 @@
                     {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '5%'},
                     {data: 'name', name: 'name'},
                     {data: 'email', name: 'email'},
+                    {data: 'outlet_name', name: 'outlet.name'},
                     {data: 'roles', name: 'roles', orderable: false, searchable: false},
                     {data: 'action', name: 'action', orderable: false, searchable: false, className: 'text-center'}
                 ]

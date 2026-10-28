@@ -97,15 +97,33 @@
                     @can('pos-access')
                     <li class="nav-item">
                         <a href="{{ route('pos.index') }}" class="nav-link {{ request()->routeIs('pos.*') ? 'active' : '' }} bg-success">
-                            <i class="nav-icon fas fa-cash-register"></i>
+                            <i class="nav-icon fas fa-desktop"></i>
                             <p>Kasir (POS)</p>
                         </a>
                     </li>
                     @endcan
 
+                    @can('shift-manage')
+                    <li class="nav-item">
+                        <a href="{{ route('shifts.index') }}" class="nav-link {{ request()->routeIs('shifts.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-cash-register"></i>
+                            <p>Shift & Rekonsiliasi</p>
+                        </a>
+                    </li>
+                    @endcan
+
                     <!-- Master Data -->
-                    @if(auth()->user()->can('material-list') || auth()->user()->can('product-list') || auth()->user()->can('supplier-list'))
+                    @if(auth()->user()->can('material-list') || auth()->user()->can('product-list') || auth()->user()->can('supplier-list') || auth()->user()->can('outlet-list'))
                     <li class="nav-header">MASTER DATA & RESEP</li>
+
+                    @can('outlet-list')
+                    <li class="nav-item">
+                        <a href="{{ route('outlets.index') }}" class="nav-link {{ request()->routeIs('outlets.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-store"></i>
+                            <p>Cabang Outlet</p>
+                        </a>
+                    </li>
+                    @endcan
 
                     @can('material-list')
                     <li class="nav-item">
@@ -135,9 +153,11 @@
                     @endcan
                     @endif
 
-                    <!-- Purchasing -->
-                    @can('purchase-list')
+                    <!-- Purchasing & Stock -->
+                    @if(auth()->user()->can('purchase-list') || auth()->user()->can('batch-list') || auth()->user()->can('stock-opname'))
                     <li class="nav-header">PENGADAAN & STOK</li>
+
+                    @can('purchase-list')
                     <li class="nav-item">
                         <a href="{{ route('purchases.index') }}" class="nav-link {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-file-invoice-dollar"></i>
@@ -145,6 +165,25 @@
                         </a>
                     </li>
                     @endcan
+
+                    @can('batch-list')
+                    <li class="nav-item">
+                        <a href="{{ route('batches.index') }}" class="nav-link {{ request()->routeIs('batches.index') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-layer-group"></i>
+                            <p>Batch FIFO & Expiry</p>
+                        </a>
+                    </li>
+                    @endcan
+
+                    @can('stock-opname')
+                    <li class="nav-item">
+                        <a href="{{ route('batches.opname') }}" class="nav-link {{ request()->routeIs('batches.opname*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-clipboard-check"></i>
+                            <p>Stock Opname & Waste</p>
+                        </a>
+                    </li>
+                    @endcan
+                    @endif
 
                     <!-- Reports -->
                     @can('report-access')
@@ -161,10 +200,16 @@
                             <p>Mutasi Stok Gudang</p>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a href="{{ route('reports.shifts') }}" class="nav-link {{ request()->routeIs('reports.shifts') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-calculator"></i>
+                            <p>Rekap Shift Kasir</p>
+                        </a>
+                    </li>
                     @endcan
 
                     <!-- System Users -->
-                    @if(auth()->user()->can('user-list') || auth()->user()->can('role-list'))
+                    @if(auth()->user()->can('user-list') || auth()->user()->can('role-list') || auth()->user()->can('activity-log-list'))
                     <li class="nav-header">PENGATURAN SISTEM</li>
                     @can('user-list')
                     <li class="nav-item">
@@ -180,6 +225,15 @@
                         <a href="{{ route('roles.index') }}" class="nav-link {{ request()->routeIs('roles.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-user-shield"></i>
                             <p>Manage Roles</p>
+                        </a>
+                    </li>
+                    @endcan
+
+                    @can('activity-log-list')
+                    <li class="nav-item">
+                        <a href="{{ route('activity-logs.index') }}" class="nav-link {{ request()->routeIs('activity-logs.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-shield-alt"></i>
+                            <p>Audit Trail (Logs)</p>
                         </a>
                     </li>
                     @endcan

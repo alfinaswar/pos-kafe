@@ -5,8 +5,10 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
+use App\Models\Outlet;
 use App\Models\Supplier;
 use App\Models\Material;
+use App\Models\MaterialBatch;
 use App\Models\Product;
 use App\Models\RecipeItem;
 use App\Models\Purchase;
@@ -14,32 +16,59 @@ use App\Models\PurchaseDetail;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\InventoryLog;
-use Spatie\Permission\Models\Role;
+use App\Models\CashierShift;
+use App\Models\PettyCash;
+use App\Models\ActivityLog;
+use Carbon\Carbon;
 
 class DummyDataSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Users untuk tiap Role (Owner, Manager, Cashier)
+        // 1. Outlets
+        $outlet = Outlet::firstOrCreate(
+            ['name' => 'Kedai Kopi Kaya Raya - Pusat'],
+            [
+                'address' => 'Jl. Tengku Zainal Abidin No. 1, Kota Pekanbaru',
+                'phone' => '0761-123456',
+            ]
+        );
+
+        // 2. Users untuk tiap Role (Owner, Manager, Cashier)
         $owner = User::firstOrCreate(
             ['email' => 'owner@kayaraya.com'],
-            ['name' => 'Budi Santoso (Owner)', 'password' => Hash::make('password')]
+            [
+                'name' => 'Budi Santoso (Owner)',
+                'username' => 'owner',
+                'password' => Hash::make('password'),
+                'outlet_id' => $outlet->id,
+            ]
         );
         $owner->syncRoles(['Owner']);
 
         $manager = User::firstOrCreate(
             ['email' => 'manager@kayaraya.com'],
-            ['name' => 'Siti Rahma (Manager)', 'password' => Hash::make('password')]
+            [
+                'name' => 'Siti Rahma (Manager)',
+                'username' => 'manager',
+                'password' => Hash::make('password'),
+                'outlet_id' => $outlet->id,
+            ]
         );
         $manager->syncRoles(['Manager']);
 
         $cashier = User::firstOrCreate(
             ['email' => 'kasir@kayaraya.com'],
-            ['name' => 'Rian Kasir', 'password' => Hash::make('password')]
+            [
+                'name' => 'Rian Kasir',
+                'username' => 'kasir',
+                'password' => Hash::make('password'),
+                'outlet_id' => $outlet->id,
+            ]
         );
         $cashier->syncRoles(['Cashier']);
 
-        // 2. Suppliers
+        // 3. Suppliers
         $supDairy = Supplier::firstOrCreate(
             ['name' => 'PT Sumber Susu Nusantara'],
             ['phone' => '081234567890', 'address' => 'Jl. Soekarno Hatta No. 45, Pekanbaru']
@@ -55,8 +84,7 @@ class DummyDataSeeder extends Seeder
             ['phone' => '082155667788', 'address' => 'Jl. Tuanku Tambusai No. 88, Pekanbaru']
         );
 
-        // 3. Raw Materials & Multi-Unit Conversion
-        // Susu UHT: Beli per Karton (12 Liter / 12.000 ml)
+        // 4. Raw Materials & Multi-Unit Conversion
         $matSusu = Material::firstOrCreate(
             ['name' => 'Susu UHT Plain'],
             [
@@ -69,7 +97,6 @@ class DummyDataSeeder extends Seeder
             ]
         );
 
-        // Biji Kopi Arabika: Beli per Kg (1.000 gram)
         $matKopi = Material::firstOrCreate(
             ['name' => 'Biji Kopi Arabika House Blend'],
             [
@@ -82,7 +109,6 @@ class DummyDataSeeder extends Seeder
             ]
         );
 
-        // Gula Aren Cair: Beli per Jerigen (5.000 ml)
         $matAren = Material::firstOrCreate(
             ['name' => 'Sirup Gula Aren Asli'],
             [
@@ -95,7 +121,6 @@ class DummyDataSeeder extends Seeder
             ]
         );
 
-        // Cup Dingin 16oz: Beli per Dus (1.000 pcs) - Diset mendekati ROP untuk demo alert
         $matCup = Material::firstOrCreate(
             ['name' => 'Paper Cup Dingin 16oz + Tutup'],
             [
@@ -108,7 +133,6 @@ class DummyDataSeeder extends Seeder
             ]
         );
 
-        // Sirup Karamel: Beli per Botol (750 ml)
         $matKaramel = Material::firstOrCreate(
             ['name' => 'Sirup Karamel Gourmet'],
             [
@@ -121,8 +145,63 @@ class DummyDataSeeder extends Seeder
             ]
         );
 
-        // 4. Products (Menu Kafe) & Bill of Materials (BOM)
-        // Menu 1: Es Kopi Susu Kaya Raya
+        // 5. Material Batches (FIFO Basis)
+        MaterialBatch::firstOrCreate(
+            ['batch_number' => 'BATCH-SUSU-001'],
+            [
+                'material_id' => $matSusu->id,
+                'initial_qty' => 24000,
+                'remaining_qty' => 24000,
+                'purchase_price' => 190000,
+                'expired_date' => Carbon::now()->addMonths(4),
+            ]
+        );
+
+        MaterialBatch::firstOrCreate(
+            ['batch_number' => 'BATCH-KOPI-001'],
+            [
+                'material_id' => $matKopi->id,
+                'initial_qty' => 5000,
+                'remaining_qty' => 4982,
+                'purchase_price' => 150000,
+                'expired_date' => Carbon::now()->addMonths(6),
+            ]
+        );
+
+        MaterialBatch::firstOrCreate(
+            ['batch_number' => 'BATCH-AREN-001'],
+            [
+                'material_id' => $matAren->id,
+                'initial_qty' => 10000,
+                'remaining_qty' => 10000,
+                'purchase_price' => 95000,
+                'expired_date' => Carbon::now()->addMonths(3),
+            ]
+        );
+
+        MaterialBatch::firstOrCreate(
+            ['batch_number' => 'BATCH-CUP-001'],
+            [
+                'material_id' => $matCup->id,
+                'initial_qty' => 1000,
+                'remaining_qty' => 150,
+                'purchase_price' => 450000,
+                'expired_date' => Carbon::now()->addYears(2),
+            ]
+        );
+
+        MaterialBatch::firstOrCreate(
+            ['batch_number' => 'BATCH-KRM-001'],
+            [
+                'material_id' => $matKaramel->id,
+                'initial_qty' => 1500,
+                'remaining_qty' => 1500,
+                'purchase_price' => 85000,
+                'expired_date' => Carbon::now()->addDays(5), // Uji notifikasi near-expiry!
+            ]
+        );
+
+        // 6. Products & BOM
         $prodKopiSusu = Product::firstOrCreate(
             ['name' => 'Es Kopi Susu Kaya Raya'],
             [
@@ -131,12 +210,11 @@ class DummyDataSeeder extends Seeder
                 'detail' => 'Signature kopi susu dengan gula aren pilihan khas Kedai Kopi Kaya Raya.'
             ]
         );
-        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matKopi->id], ['quantity' => 18]); // 18 gram kopi
-        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matSusu->id], ['quantity' => 120]); // 120 ml susu
-        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matAren->id], ['quantity' => 25]); // 25 ml aren
-        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matCup->id], ['quantity' => 1]); // 1 pcs cup
+        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matKopi->id], ['quantity' => 18]);
+        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matSusu->id], ['quantity' => 120]);
+        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matAren->id], ['quantity' => 25]);
+        RecipeItem::firstOrCreate(['product_id' => $prodKopiSusu->id, 'material_id' => $matCup->id], ['quantity' => 1]);
 
-        // Menu 2: Caramel Latte Ice
         $prodCaramel = Product::firstOrCreate(
             ['name' => 'Caramel Latte Ice'],
             [
@@ -150,7 +228,6 @@ class DummyDataSeeder extends Seeder
         RecipeItem::firstOrCreate(['product_id' => $prodCaramel->id, 'material_id' => $matKaramel->id], ['quantity' => 20]);
         RecipeItem::firstOrCreate(['product_id' => $prodCaramel->id, 'material_id' => $matCup->id], ['quantity' => 1]);
 
-        // Menu 3: Americano Ice
         $prodAmericano = Product::firstOrCreate(
             ['name' => 'Americano Ice'],
             [
@@ -162,8 +239,7 @@ class DummyDataSeeder extends Seeder
         RecipeItem::firstOrCreate(['product_id' => $prodAmericano->id, 'material_id' => $matKopi->id], ['quantity' => 18]);
         RecipeItem::firstOrCreate(['product_id' => $prodAmericano->id, 'material_id' => $matCup->id], ['quantity' => 1]);
 
-        // 5. Purchase Order (PO) Dummy (1 Completed, 1 Pending Approval)
-        // PO Completed
+        // 7. Purchase Order (PO)
         $poCompleted = Purchase::firstOrCreate(
             ['invoice_number' => 'PO-20261028-0001'],
             [
@@ -176,10 +252,9 @@ class DummyDataSeeder extends Seeder
         );
         PurchaseDetail::firstOrCreate(
             ['purchase_id' => $poCompleted->id, 'material_id' => $matSusu->id],
-            ['qty_purchase' => 2, 'unit_price' => 190000, 'subtotal' => 380000]
+            ['qty_purchase' => 2, 'unit_price' => 190000, 'subtotal' => 380000, 'expired_date' => Carbon::now()->addMonths(4)]
         );
 
-        // PO Pending (Menunggu Approval Owner di Dashboard)
         $poPending = Purchase::firstOrCreate(
             ['invoice_number' => 'PO-20261028-0002'],
             [
@@ -192,14 +267,39 @@ class DummyDataSeeder extends Seeder
         );
         PurchaseDetail::firstOrCreate(
             ['purchase_id' => $poPending->id, 'material_id' => $matCup->id],
-            ['qty_purchase' => 1, 'unit_price' => 450000, 'subtotal' => 450000]
+            ['qty_purchase' => 1, 'unit_price' => 450000, 'subtotal' => 450000, 'expired_date' => Carbon::now()->addYears(2)]
         );
 
-        // 6. Transaksi POS Dummy (Sales)
+        // 8. Cashier Shift & Petty Cash
+        $shift = CashierShift::firstOrCreate(
+            ['user_id' => $cashier->id, 'status' => 'open'],
+            [
+                'outlet_id' => $outlet->id,
+                'start_cash' => 200000,
+                'total_sales_cash' => 48000,
+                'total_sales_non_cash' => 0,
+                'expected_cash' => 228000, // 200.000 + 48.000 - 20.000
+                'actual_cash' => null,
+                'variance' => 0,
+                'notes' => 'Shift Pagi Kasir'
+            ]
+        );
+
+        PettyCash::firstOrCreate(
+            ['shift_id' => $shift->id, 'description' => 'Beli es batu kristal 2 pack'],
+            [
+                'user_id' => $cashier->id,
+                'type' => 'out',
+                'amount' => 20000,
+            ]
+        );
+
+        // 9. Transaksi POS Dummy (Sales)
         $sale = Sale::firstOrCreate(
             ['invoice_number' => 'INV-202610280915-101'],
             [
                 'user_id' => $cashier->id,
+                'shift_id' => $shift->id,
                 'total_price' => 48000,
                 'payment_amount' => 50000,
                 'change_amount' => 2000,
@@ -215,13 +315,13 @@ class DummyDataSeeder extends Seeder
             ['quantity' => 1, 'unit_price' => 26000, 'subtotal' => 26000]
         );
 
-        // 7. Inventory Logs
+        // 10. Inventory Logs
         InventoryLog::firstOrCreate(
             ['reference' => 'Goods Receipt: PO-20261028-0001'],
             [
                 'material_id' => $matSusu->id,
                 'type' => 'in',
-                'quantity' => 24000, // 2 karton x 12.000 ml
+                'quantity' => 24000,
                 'stock_after' => 24000,
             ]
         );
@@ -232,6 +332,16 @@ class DummyDataSeeder extends Seeder
                 'type' => 'out',
                 'quantity' => 18,
                 'stock_after' => 4982,
+            ]
+        );
+
+        // 11. Activity Logs
+        ActivityLog::firstOrCreate(
+            ['action' => 'SYSTEM_SEED'],
+            [
+                'user_id' => $owner->id,
+                'description' => 'Inisialisasi sistem SIP3-KAFE Commercial Edition',
+                'ip_address' => '127.0.0.1',
             ]
         );
     }

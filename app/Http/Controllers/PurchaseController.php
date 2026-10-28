@@ -6,7 +6,9 @@ use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Supplier;
 use App\Models\Material;
+use App\Models\MaterialBatch;
 use App\Models\InventoryLog;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
@@ -69,9 +71,10 @@ class PurchaseController extends Controller
             'materials.*.id' => 'required|exists:materials,id',
             'materials.*.qty' => 'required|numeric|min:0.01',
             'materials.*.price' => 'required|numeric|min:0',
+            'materials.*.expired_date' => 'nullable|date',
         ]);
 
-        DB::transaction(function () use ($request) {
+        $purchase = DB::transaction(function () use ($request) {
             $invoiceNumber = 'PO-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -4));
             $totalCost = 0;
 
@@ -95,8 +98,13 @@ class PurchaseController extends Controller
                     'qty_purchase' => $item['qty'],
                     'unit_price' => $item['price'],
                     'subtotal' => $item['qty'] * $item['price'],
+                    'expired_date' => $item['expired_date'] ?? null,
                 ]);
             }
+
+            ActivityLog::record('CREATE_PO', "Membuat draft Purchase Order {$invoiceNumber} senilai Rp " . number_format($totalCost, 0, ',', '.'));
+
+            return $purchase;
         });
 
         return redirect()->route('purchases.index')
@@ -118,6 +126,8 @@ class PurchaseController extends Controller
 
         $purchase->update(['status' => 'approved']);
 
+        ActivityLog::record('APPROVE_PO', "Menyetujui Purchase Order {$purchase->invoice_number}");
+
         return redirect()->route('purchases.show', $purchase->id)
             ->with('success', 'Purchase Order approved successfully.');
     }
@@ -130,11 +140,13 @@ class PurchaseController extends Controller
 
         $purchase->update(['status' => 'rejected']);
 
+        ActivityLog::record('REJECT_PO', "Menolak Purchase Order {$purchase->invoice_number}");
+
         return redirect()->route('purchases.show', $purchase->id)
             ->with('success', 'Purchase Order has been rejected.');
     }
 
-    // Goods Receipt (Penerimaan Barang & Konversi Satuan Otomatis ke Recipe Unit)
+    // Goods Receipt (Penerimaan Barang & Konversi Satuan Otomatis ke Batch FIFO)
     public function receive(Purchase $purchase): RedirectResponse
     {
         if ($purchase->status !== 'approved') {
@@ -143,26 +155,42 @@ class PurchaseController extends Controller
 
         DB::transaction(function () use ($purchase) {
             foreach ($purchase->details as $detail) {
-                $material = $detail->material;
+                $material = Material::lockForUpdate()->find($detail->material_id);
                 // Konversi unit beli ke unit resep (misal: 1 karton x 12.000 ml)
                 $addedRecipeQty = $detail->qty_purchase * $material->conversion_factor;
 
+                // 1. Buat batch FIFO baru
+                $batchNumber = 'BATCH-' . $purchase->invoice_number . '-' . $detail->id;
+                $batch = MaterialBatch::create([
+                    'material_id' => $material->id,
+                    'purchase_id' => $purchase->id,
+                    'batch_number' => $batchNumber,
+                    'initial_qty' => $addedRecipeQty,
+                    'remaining_qty' => $addedRecipeQty,
+                    'purchase_price' => $detail->unit_price,
+                    'expired_date' => $detail->expired_date,
+                ]);
+
+                // 2. Tambah stok master bahan
                 $material->increment('stock', $addedRecipeQty);
 
-                // Catat log mutasi stok masuk
+                // 3. Catat log mutasi inventaris
                 InventoryLog::create([
                     'material_id' => $material->id,
+                    'batch_id' => $batch->id,
                     'type' => 'in',
                     'quantity' => $addedRecipeQty,
                     'stock_after' => $material->fresh()->stock,
-                    'reference' => 'Goods Receipt: ' . $purchase->invoice_number,
+                    'reference' => 'Goods Receipt: ' . $purchase->invoice_number . ' (Batch #' . $batchNumber . ')',
                 ]);
             }
 
             $purchase->update(['status' => 'completed']);
+
+            ActivityLog::record('RECEIVE_GOODS', "Penerimaan barang PO {$purchase->invoice_number} ke stok gudang & batch FIFO.");
         });
 
         return redirect()->route('purchases.show', $purchase->id)
-            ->with('success', 'Goods successfully received! Inventory stock updated via multi-unit conversion.');
+            ->with('success', 'Barang berhasil diterima! Stok diperbarui dan batch FIFO telah dibuat.');
     }
 }

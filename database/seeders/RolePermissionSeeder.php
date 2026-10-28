@@ -19,19 +19,22 @@ class RolePermissionSeeder extends Seeder
             // User & Role
             'user-list', 'user-create', 'user-edit', 'user-delete',
             'role-list', 'role-create', 'role-edit', 'role-delete',
+            // Outlets
+            'outlet-list', 'outlet-create', 'outlet-edit', 'outlet-delete',
             // Supplier
             'supplier-list', 'supplier-create', 'supplier-edit', 'supplier-delete',
-            // Material & Stock
+            // Material & Batches
             'material-list', 'material-create', 'material-edit', 'material-delete',
+            'batch-list', 'stock-opname',
             // Product & BOM (Recipe)
             'product-list', 'product-create', 'product-edit', 'product-delete',
             'recipe-manage',
             // Purchasing
             'purchase-list', 'purchase-create', 'purchase-approve', 'purchase-receive',
-            // POS
-            'pos-access',
-            // Reports & Dashboard
-            'report-access', 'dashboard-access'
+            // POS & Shift Management
+            'pos-access', 'shift-manage', 'petty-cash',
+            // Reports, Activity Log & Dashboard
+            'report-access', 'dashboard-access', 'activity-log-list'
         ];
 
         foreach ($permissions as $permission) {
@@ -46,22 +49,27 @@ class RolePermissionSeeder extends Seeder
         // Owner: Full System Access (Termasuk Approve PO)
         $ownerRole->syncPermissions(Permission::all());
 
-        // Manager: Master data, PO create, Goods receipt, Stock opname, Report
+        // Manager: Master data, PO create/receive, Stock opname, Batches, Shifts, Reports, Activity logs
         $managerRole->syncPermissions([
             'dashboard-access',
+            'outlet-list',
             'supplier-list', 'supplier-create', 'supplier-edit',
             'material-list', 'material-create', 'material-edit',
+            'batch-list', 'stock-opname',
             'product-list', 'product-create', 'product-edit', 'recipe-manage',
             'purchase-list', 'purchase-create', 'purchase-receive',
-            'report-access'
+            'shift-manage',
+            'report-access', 'activity-log-list'
         ]);
 
-        // Cashier: POS Access only & Sales summary
+        // Cashier: POS Access, Shift open/close, Petty cash
         $cashierRole->syncPermissions([
-            'pos-access'
+            'pos-access',
+            'shift-manage',
+            'petty-cash'
         ]);
 
-        // Assign Owner role to current admin if exists
+        // Assign Owner role to admin@gmail.com if exists
         $admin = User::where('email', 'admin@gmail.com')->first();
         if ($admin) {
             $admin->assignRole('Owner');

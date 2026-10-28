@@ -36,4 +36,9 @@ class Purchase extends Model
     {
         return $this->hasMany(PurchaseDetail::class);
     }
+
+    public function batches()
+    {
+        return $this->hasMany(MaterialBatch::class);
+    }
 }

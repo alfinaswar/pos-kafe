@@ -11,6 +11,7 @@ class InventoryLog extends Model
 
     protected $fillable = [
         'material_id',
+        'batch_id',
         'type',
         'quantity',
         'stock_after',
@@ -25,5 +26,10 @@ class InventoryLog extends Model
     public function material()
     {
         return $this->belongsTo(Material::class);
+    }
+
+    public function batch()
+    {
+        return $this->belongsTo(MaterialBatch::class, 'batch_id');
     }
 }

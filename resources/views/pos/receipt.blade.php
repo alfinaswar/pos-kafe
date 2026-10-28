@@ -26,8 +26,8 @@
 <body onload="window.print()">
 
 <div class="text-center">
-    <h3 style="margin: 0;">KEDAI KOPI KAYA RAYA</h3>
-    <small>Jl. Tengku Zainal Abidin No. 1<br>Kota Pekanbaru</small>
+    <h3 style="margin: 0;">{{ $sale->shift->outlet->name ?? 'KEDAI KOPI KAYA RAYA' }}</h3>
+    <small>{{ $sale->shift->outlet->address ?? 'Jl. Tengku Zainal Abidin No. 1, Kota Pekanbaru' }}<br>Telp: {{ $sale->shift->outlet->phone ?? '-' }}</small>
 </div>
 
 <div class="divider"></div>

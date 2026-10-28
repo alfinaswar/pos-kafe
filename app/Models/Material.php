@@ -46,4 +46,14 @@ class Material extends Model
     {
         return $this->hasMany(InventoryLog::class);
     }
+
+    public function batches()
+    {
+        return $this->hasMany(MaterialBatch::class);
+    }
+
+    public function activeBatches()
+    {
+        return $this->hasMany(MaterialBatch::class)->where('remaining_qty', '>', 0)->orderBy('created_at', 'asc');
+    }
 }

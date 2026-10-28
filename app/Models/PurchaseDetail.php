@@ -14,13 +14,15 @@ class PurchaseDetail extends Model
         'material_id',
         'qty_purchase',
         'unit_price',
-        'subtotal'
+        'subtotal',
+        'expired_date',
     ];
 
     protected $casts = [
         'qty_purchase' => 'decimal:2',
         'unit_price' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'expired_date' => 'date',
     ];
 
     public function purchase()

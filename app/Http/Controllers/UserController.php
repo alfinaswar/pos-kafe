@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Outlet;
 use Spatie\Permission\Models\Role;
 use DB;
 use Hash;
@@ -61,7 +62,8 @@ class UserController extends Controller
     public function create(): View
     {
         $roles = Role::pluck('name','name')->all();
-        return view('users.create',compact('roles'));
+        $outlets = Outlet::all();
+        return view('users.create',compact('roles', 'outlets'));
     }
     
     /**
@@ -75,6 +77,8 @@ class UserController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'email' => 'required|email|unique:users,email',
+            'username' => 'nullable|string|unique:users,username',
+            'outlet_id' => 'nullable|exists:outlets,id',
             'password' => 'required|same:confirm-password',
             'roles' => 'required'
         ]);
@@ -97,7 +101,7 @@ class UserController extends Controller
      */
     public function show($id): View
     {
-        $user = User::find($id);
+        $user = User::with('outlet')->find($id);
         return view('users.show',compact('user'));
     }
     
@@ -112,8 +116,9 @@ class UserController extends Controller
         $user = User::find($id);
         $roles = Role::pluck('name','name')->all();
         $userRole = $user->roles->pluck('name','name')->all();
+        $outlets = Outlet::all();
     
-        return view('users.edit',compact('user','roles','userRole'));
+        return view('users.edit',compact('user','roles','userRole', 'outlets'));
     }
     
     /**
@@ -128,6 +133,8 @@ class UserController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'email' => 'required|email|unique:users,email,'.$id,
+            'username' => 'nullable|string|unique:users,username,'.$id,
+            'outlet_id' => 'nullable|exists:outlets,id',
             'password' => 'same:confirm-password',
             'roles' => 'required'
         ]);

@@ -12,6 +12,7 @@ class Sale extends Model
     protected $fillable = [
         'invoice_number',
         'user_id',
+        'shift_id',
         'total_price',
         'payment_amount',
         'change_amount',
@@ -27,6 +28,11 @@ class Sale extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function shift()
+    {
+        return $this->belongsTo(CashierShift::class, 'shift_id');
     }
 
     public function items()

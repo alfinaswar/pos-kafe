@@ -63,15 +63,16 @@
                             <tr>
                                 <th>Material</th>
                                 <th style="width: 140px;">Qty (Purchase Unit)</th>
-                                <th style="width: 180px;">Unit Price (Rp)</th>
-                                <th style="width: 160px;">Subtotal (Rp)</th>
+                                <th style="width: 160px;">Unit Price (Rp)</th>
+                                <th style="width: 140px;">Tgl Expired</th>
+                                <th style="width: 140px;">Subtotal (Rp)</th>
                                 <th style="width: 40px;"></th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                         <tfoot>
                             <tr>
-                                <th colspan="3" class="text-right">Estimated Total Cost:</th>
+                                <th colspan="4" class="text-right">Estimated Total Cost:</th>
                                 <th id="grand-total-text" class="text-primary font-weight-bold">Rp 0</th>
                                 <th></th>
                             </tr>
@@ -120,6 +121,9 @@
                 </td>
                 <td>
                     <input type="number" step="any" min="0" name="materials[${rowIdx}][price]" class="form-control item-price" placeholder="Harga satuan" required>
+                </td>
+                <td>
+                    <input type="date" name="materials[${rowIdx}][expired_date]" class="form-control form-control-sm">
                 </td>
                 <td class="align-middle font-weight-bold item-subtotal text-right">Rp 0</td>
                 <td class="text-center align-middle">

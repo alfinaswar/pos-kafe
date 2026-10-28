@@ -37,14 +37,39 @@
                     </div>
                 @endif
 
-                <div class="form-group">
-                    <label for="name">Full Name <span class="text-danger">*</span></label>
-                    {!! Form::text('name', null, ['id' => 'name', 'placeholder' => 'Enter full name', 'class' => 'form-control ' . ($errors->has('name') ? 'is-invalid' : ''), 'required']) !!}
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="name">Full Name <span class="text-danger">*</span></label>
+                            {!! Form::text('name', null, ['id' => 'name', 'placeholder' => 'Enter full name', 'class' => 'form-control ' . ($errors->has('name') ? 'is-invalid' : ''), 'required']) !!}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="username">Username (Optional)</label>
+                            {!! Form::text('username', null, ['id' => 'username', 'placeholder' => 'Enter username', 'class' => 'form-control ' . ($errors->has('username') ? 'is-invalid' : '')]) !!}
+                        </div>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="email">Email Address <span class="text-danger">*</span></label>
-                    {!! Form::email('email', null, ['id' => 'email', 'placeholder' => 'Enter email', 'class' => 'form-control ' . ($errors->has('email') ? 'is-invalid' : ''), 'required']) !!}
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="email">Email Address <span class="text-danger">*</span></label>
+                            {!! Form::email('email', null, ['id' => 'email', 'placeholder' => 'Enter email', 'class' => 'form-control ' . ($errors->has('email') ? 'is-invalid' : ''), 'required']) !!}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="outlet_id">Cabang Outlet</label>
+                            <select name="outlet_id" id="outlet_id" class="form-control">
+                                <option value="">-- Semua Cabang (Pusat) --</option>
+                                @foreach($outlets as $out)
+                                    <option value="{{ $out->id }}">{{ $out->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="row">

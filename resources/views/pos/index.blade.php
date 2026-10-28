@@ -19,9 +19,6 @@
             transform: translateY(-3px);
             box-shadow: 0 4px 15px rgba(0,0,0,0.12);
         }
-        .category-pill {
-            cursor: pointer;
-        }
         .cart-table th, .cart-table td {
             vertical-align: middle !important;
         }
@@ -29,12 +26,47 @@
 @endpush
 
 @section('content')
+<!-- Shift Information & Quick Actions Bar -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card card-outline card-success shadow-sm mb-0">
+            <div class="card-body p-2 d-flex flex-wrap justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span class="badge badge-success px-3 py-2 mr-3 font-weight-bold">
+                        <i class="fas fa-cash-register mr-1"></i> SHIFT AKTIF #{{ $activeShift->id }}
+                    </span>
+                    <span class="mr-3 text-sm">
+                        <i class="fas fa-store text-muted mr-1"></i> Outlet: <strong>{{ $activeShift->outlet->name ?? 'Pusat' }}</strong>
+                    </span>
+                    <span class="mr-3 text-sm">
+                        <i class="fas fa-wallet text-muted mr-1"></i> Modal Awal: <strong>Rp {{ number_format($activeShift->start_cash, 0, ',', '.') }}</strong>
+                    </span>
+                    <span class="mr-3 text-sm">
+                        <i class="fas fa-coins text-success mr-1"></i> Penjualan Tunai: <strong id="bar-sales-cash" class="text-success">Rp {{ number_format($activeShift->total_sales_cash, 0, ',', '.') }}</strong>
+                    </span>
+                    <span class="mr-3 text-sm">
+                        <i class="fas fa-money-bill-wave text-primary mr-1"></i> Ekspektasi Kas: <strong id="bar-expected-cash" class="text-primary">Rp {{ number_format($expectedCash, 0, ',', '.') }}</strong>
+                    </span>
+                </div>
+                <div class="mt-2 mt-md-0">
+                    <button type="button" class="btn btn-outline-info btn-sm mr-2" data-toggle="modal" data-target="#modal-petty-cash">
+                        <i class="fas fa-hand-holding-usd mr-1"></i> Kas Operasional (Petty Cash)
+                    </button>
+                    <a href="{{ route('shifts.close.form', $activeShift->id) }}" class="btn btn-warning btn-sm font-weight-bold text-dark">
+                        <i class="fas fa-lock mr-1"></i> Tutup Shift
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <!-- Menu Grid -->
     <div class="col-md-7 col-lg-8">
         <!-- Category Filter -->
         <div class="mb-3 d-flex flex-wrap gap-2">
-            <button class="btn btn-primary btn-sm category-btn active mr-1 mb-1" data-cat="all">All Menu</button>
+            <button class="btn btn-primary btn-sm category-btn active mr-1 mb-1" data-cat="all">Semua Menu</button>
             @foreach($categories as $cat)
                 <button class="btn btn-outline-secondary btn-sm category-btn mr-1 mb-1" data-cat="{{ strtolower($cat) }}">{{ $cat }}</button>
             @endforeach
@@ -60,7 +92,7 @@
             @empty
                 <div class="col-12 text-center py-5 text-muted">
                     <i class="fas fa-mug-hot fa-3x mb-3"></i>
-                    <p>No products found. Please add products first.</p>
+                    <p>Belum ada produk menu. Silakan tambahkan produk di Master Data Menu.</p>
                 </div>
             @endforelse
         </div>
@@ -70,18 +102,18 @@
     <div class="col-md-5 col-lg-4">
         <div class="card card-outline card-primary shadow">
             <div class="card-header bg-white">
-                <h3 class="card-title font-weight-bold"><i class="fas fa-shopping-cart mr-1"></i> Current Order</h3>
+                <h3 class="card-title font-weight-bold"><i class="fas fa-shopping-cart mr-1"></i> Pesanan Kasir</h3>
                 <div class="card-tools">
                     <button class="btn btn-outline-danger btn-xs" onclick="clearCart()"><i class="fas fa-trash"></i> Reset</button>
                 </div>
             </div>
-            <div class="card-body p-0 table-responsive" style="max-height: 380px;">
+            <div class="card-body p-0 table-responsive" style="max-height: 340px;">
                 <table class="table table-sm cart-table mb-0" id="cart-table">
                     <thead class="bg-light">
                         <tr>
-                            <th>Item</th>
+                            <th>Menu</th>
                             <th style="width: 90px;" class="text-center">Qty</th>
-                            <th style="width: 100px;" class="text-right">Total</th>
+                            <th style="width: 100px;" class="text-right">Subtotal</th>
                             <th style="width: 30px;"></th>
                         </tr>
                     </thead>
@@ -91,27 +123,45 @@
                 </table>
                 <div id="cart-empty" class="text-center py-5 text-muted">
                     <i class="fas fa-cash-register fa-2x mb-2 text-gray"></i>
-                    <p class="mb-0 text-sm">Cart is empty. Select menu.</p>
+                    <p class="mb-0 text-sm">Keranjang kosong. Pilih menu di sebelah kiri.</p>
                 </div>
             </div>
 
             <!-- Summary & Payment -->
             <div class="card-footer bg-light p-3">
                 <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Total:</span>
+                    <span class="text-muted">Total Tagihan:</span>
                     <h4 class="font-weight-bold text-primary mb-0" id="grand-total-display">Rp 0</h4>
                 </div>
 
                 <div class="form-group mb-2">
-                    <label class="text-xs mb-1">Payment Amount (Bayar):</label>
+                    <label class="text-xs mb-1">Metode Pembayaran:</label>
+                    <select id="payment-method" class="form-control form-control-sm font-weight-bold">
+                        <option value="cash">Tunai (Cash)</option>
+                        <option value="qris">QRIS (Non-Tunai)</option>
+                        <option value="transfer">Transfer Bank (Non-Tunai)</option>
+                        <option value="debit">Kartu Debit (Non-Tunai)</option>
+                    </select>
+                </div>
+
+                <div class="form-group mb-2" id="payment-input-group">
+                    <label class="text-xs mb-1">Uang Diterima (Bayar):</label>
                     <div class="input-group">
                         <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
                         <input type="number" id="payment-input" class="form-control font-weight-bold text-success" placeholder="0" min="0">
                     </div>
                 </div>
 
+                <!-- Quick Cash Buttons -->
+                <div class="d-flex flex-wrap gap-1 mb-2" id="quick-cash-buttons">
+                    <button type="button" class="btn btn-outline-secondary btn-xs mr-1 mb-1 btn-quick" onclick="setExactPayment()">Uang Pas</button>
+                    <button type="button" class="btn btn-outline-secondary btn-xs mr-1 mb-1 btn-quick" onclick="addPayment(20000)">20k</button>
+                    <button type="button" class="btn btn-outline-secondary btn-xs mr-1 mb-1 btn-quick" onclick="addPayment(50000)">50k</button>
+                    <button type="button" class="btn btn-outline-secondary btn-xs mr-1 mb-1 btn-quick" onclick="addPayment(100000)">100k</button>
+                </div>
+
                 <div class="d-flex justify-content-between mb-3 text-sm">
-                    <span>Kembalian (Change):</span>
+                    <span>Kembalian:</span>
                     <strong id="change-display" class="text-secondary">Rp 0</strong>
                 </div>
 
@@ -119,6 +169,45 @@
                     <i class="fas fa-check-circle mr-1"></i> BAYAR & CETAK STRUK
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Petty Cash -->
+<div class="modal fade" id="modal-petty-cash" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title font-weight-bold"><i class="fas fa-hand-holding-usd mr-1"></i> Catat Kas Operasional (Petty Cash)</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="form-petty-cash">
+                @csrf
+                <input type="hidden" name="shift_id" value="{{ $activeShift->id }}">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Tipe Kas Operasional <span class="text-danger">*</span></label>
+                        <select name="type" class="form-control" required>
+                            <option value="out">Kas Keluar (Beli es batu, galon, transport, supplies darurat)</option>
+                            <option value="in">Kas Masuk (Tambah modal laci, setor tunai kasir)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Nominal (Rp) <span class="text-danger">*</span></label>
+                        <input type="number" step="1000" min="1" name="amount" class="form-control font-weight-bold" placeholder="Contoh: 15000" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Keterangan / Keperluan <span class="text-danger">*</span></label>
+                        <input type="text" name="description" class="form-control" placeholder="Contoh: Beli es kristal 1 pack" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-info font-weight-bold"><i class="fas fa-save mr-1"></i> Simpan Catatan</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -142,6 +231,28 @@
             $(`.product-item[data-category="${cat}"]`).show();
         }
     });
+
+    $('#payment-method').change(function() {
+        let method = $(this).val();
+        let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
+        if (method !== 'cash') {
+            $('#payment-input').val(total);
+            calcChange(total);
+        }
+    });
+
+    function setExactPayment() {
+        let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
+        $('#payment-input').val(total);
+        calcChange(total);
+    }
+
+    function addPayment(amt) {
+        let current = parseFloat($('#payment-input').val()) || 0;
+        $('#payment-input').val(current + amt);
+        let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
+        calcChange(total);
+    }
 
     function addToCart(id, name, price) {
         let existing = cart.find(i => i.product_id === id);
@@ -215,6 +326,9 @@
         }
 
         $('#grand-total-display').text('Rp ' + total.toLocaleString('id-ID'));
+        if ($('#payment-method').val() !== 'cash') {
+            $('#payment-input').val(total);
+        }
         calcChange(total);
     }
 
@@ -236,6 +350,7 @@
     function processCheckout() {
         let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
         let payment = parseFloat($('#payment-input').val()) || 0;
+        let method = $('#payment-method').val();
 
         if (payment < total) {
             Swal.fire({
@@ -248,7 +363,7 @@
 
         Swal.fire({
             title: 'Konfirmasi Pembayaran?',
-            text: `Total: Rp ${total.toLocaleString('id-ID')} | Bayar: Rp ${payment.toLocaleString('id-ID')}`,
+            text: `Metode: ${method.toUpperCase()} | Total: Rp ${total.toLocaleString('id-ID')} | Bayar: Rp ${payment.toLocaleString('id-ID')}`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Proses Transaksi'
@@ -261,7 +376,7 @@
                         _token: $('meta[name="csrf-token"]').attr('content'),
                         items: cart,
                         payment_amount: payment,
-                        payment_method: 'cash'
+                        payment_method: method
                     },
                     success: function(response) {
                         Swal.fire({
@@ -270,16 +385,16 @@
                             text: `Kembalian: Rp ${response.change.toLocaleString('id-ID')}`,
                             confirmButtonText: 'Cetak Struk'
                         }).then(() => {
-                            // Buka popup cetak struk termal
                             window.open("{{ url('/pos/receipt') }}/" + response.sale_id, '_blank', 'width=400,height=600');
                             clearCart();
+                            location.reload();
                         });
                     },
                     error: function(xhr) {
                         let msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal memproses transaksi.';
                         Swal.fire({
                             icon: 'error',
-                            title: 'Gagal!',
+                            title: 'Transaksi Gagal / Stok Tidak Cukup!',
                             text: msg
                         });
                     }
@@ -287,5 +402,33 @@
             }
         });
     }
+
+    // Submit Petty Cash
+    $('#form-petty-cash').submit(function(e) {
+        e.preventDefault();
+        $.ajax({
+            url: "{{ route('shifts.petty_cash') }}",
+            type: "POST",
+            data: $(this).serialize(),
+            success: function(res) {
+                $('#modal-petty-cash').modal('hide');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil!',
+                    text: res.message
+                }).then(() => {
+                    location.reload();
+                });
+            },
+            error: function(xhr) {
+                let msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal mencatat kas operasional.';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: msg
+                });
+            }
+        });
+    });
 </script>
 @endpush

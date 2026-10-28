@@ -21,8 +21,35 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'username',
         'password',
+        'outlet_id',
     ];
+
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
+    }
+
+    public function shifts()
+    {
+        return $this->hasMany(CashierShift::class);
+    }
+
+    public function activeShift()
+    {
+        return $this->hasOne(CashierShift::class)->where('status', 'open')->latest();
+    }
+
+    public function sales()
+    {
+        return $this->hasMany(Sale::class);
+    }
+
+    public function purchases()
+    {
+        return $this->hasMany(Purchase::class);
+    }
 
     /**
      * The attributes that should be hidden for serialization.
