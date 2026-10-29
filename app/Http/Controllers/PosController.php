@@ -185,7 +185,7 @@ class PosController extends Controller
                 'change' => $sale->change_amount,
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()

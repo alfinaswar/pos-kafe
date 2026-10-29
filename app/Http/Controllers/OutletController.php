@@ -58,12 +58,18 @@ class OutletController extends Controller
             'address' => 'nullable|string',
         ]);
 
-        $outlet = Outlet::create($request->all());
+        try {
+            $outlet = Outlet::create($request->all());
 
-        ActivityLog::record('CREATE_OUTLET', "Membuat outlet baru: {$outlet->name}");
+            ActivityLog::record('CREATE_OUTLET', "Membuat outlet baru: {$outlet->name}");
 
-        return redirect()->route('outlets.index')
-            ->with('success', 'Outlet berhasil ditambahkan.');
+            return redirect()->route('outlets.index')
+                ->with('success', 'Outlet berhasil ditambahkan.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal menambahkan outlet: ' . $e->getMessage());
+        }
     }
 
     public function edit(Outlet $outlet): View
@@ -79,26 +85,39 @@ class OutletController extends Controller
             'address' => 'nullable|string',
         ]);
 
-        $outlet->update($request->all());
+        try {
+            $outlet->update($request->all());
 
-        ActivityLog::record('UPDATE_OUTLET', "Memperbarui outlet: {$outlet->name}");
+            ActivityLog::record('UPDATE_OUTLET', "Memperbarui outlet: {$outlet->name}");
 
-        return redirect()->route('outlets.index')
-            ->with('success', 'Outlet berhasil diperbarui.');
+            return redirect()->route('outlets.index')
+                ->with('success', 'Outlet berhasil diperbarui.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal memperbarui outlet: ' . $e->getMessage());
+        }
     }
 
     public function destroy(Outlet $outlet): RedirectResponse
     {
-        if ($outlet->shifts()->count() > 0) {
-            return back()->with('error', 'Outlet tidak dapat dihapus karena sudah memiliki riwayat shift/transaksi.');
+        try {
+            if ($outlet->shifts()->count() > 0) {
+                return back()->with('error', 'Outlet tidak dapat dihapus karena sudah memiliki riwayat shift/transaksi.');
+            }
+            if ($outlet->users()->count() > 0) {
+                return back()->with('error', 'Outlet tidak dapat dihapus karena masih memiliki user/staff terdaftar.');
+            }
+
+            $name = $outlet->name;
+            $outlet->delete();
+
+            ActivityLog::record('DELETE_OUTLET', "Menghapus outlet: {$name}");
+
+            return redirect()->route('outlets.index')
+                ->with('success', 'Outlet berhasil dihapus.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal menghapus outlet: ' . $e->getMessage());
         }
-
-        $name = $outlet->name;
-        $outlet->delete();
-
-        ActivityLog::record('DELETE_OUTLET', "Menghapus outlet: {$name}");
-
-        return redirect()->route('outlets.index')
-            ->with('success', 'Outlet berhasil dihapus.');
     }
 }

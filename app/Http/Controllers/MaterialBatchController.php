@@ -101,98 +101,108 @@ class MaterialBatchController extends Controller
             'reason' => 'required|string|max:500',
         ]);
 
-        DB::transaction(function () use ($request) {
-            $material = Material::lockForUpdate()->findOrFail($request->material_id);
-            $qty = (float) $request->quantity;
+        try {
+            DB::transaction(function () use ($request) {
+                $material = Material::lockForUpdate()->findOrFail($request->material_id);
+                $qty = (float) $request->quantity;
 
-            if ($request->filled('batch_id')) {
-                $batch = MaterialBatch::lockForUpdate()->findOrFail($request->batch_id);
+                if ($request->filled('batch_id')) {
+                    $batch = MaterialBatch::lockForUpdate()->findOrFail($request->batch_id);
 
-                if (in_array($request->type, ['waste', 'opname_loss'])) {
-                    if ($batch->remaining_qty < $qty) {
-                        throw new \Exception("Jumlah penyesuaian melampaui sisa stok batch ({$batch->remaining_qty} {$material->recipe_unit})!");
+                    if (in_array($request->type, ['waste', 'opname_loss'])) {
+                        if ($batch->remaining_qty < $qty) {
+                            throw new \Exception("Jumlah penyesuaian melampaui sisa stok batch ({$batch->remaining_qty} {$material->recipe_unit})!");
+                        }
+                        $batch->decrement('remaining_qty', $qty);
+                        $material->decrement('stock', $qty);
+
+                        InventoryLog::create([
+                            'material_id' => $material->id,
+                            'batch_id' => $batch->id,
+                            'type' => 'out',
+                            'quantity' => $qty,
+                            'stock_after' => $material->fresh()->stock,
+                            'reference' => strtoupper($request->type) . ': ' . $request->reason . ' (Batch #' . ($batch->batch_number ?? $batch->id) . ')',
+                        ]);
+                    } else {
+                        // opname_gain (penambahan fisik)
+                        $batch->increment('remaining_qty', $qty);
+                        $material->increment('stock', $qty);
+
+                        InventoryLog::create([
+                            'material_id' => $material->id,
+                            'batch_id' => $batch->id,
+                            'type' => 'in',
+                            'quantity' => $qty,
+                            'stock_after' => $material->fresh()->stock,
+                            'reference' => 'OPNAME GAIN: ' . $request->reason . ' (Batch #' . ($batch->batch_number ?? $batch->id) . ')',
+                        ]);
                     }
-                    $batch->decrement('remaining_qty', $qty);
-                    $material->decrement('stock', $qty);
-
-                    InventoryLog::create([
-                        'material_id' => $material->id,
-                        'batch_id' => $batch->id,
-                        'type' => 'out',
-                        'quantity' => $qty,
-                        'stock_after' => $material->fresh()->stock,
-                        'reference' => strtoupper($request->type) . ': ' . $request->reason . ' (Batch #' . ($batch->batch_number ?? $batch->id) . ')',
-                    ]);
                 } else {
-                    // opname_gain (penambahan fisik)
-                    $batch->increment('remaining_qty', $qty);
-                    $material->increment('stock', $qty);
+                    // Penyesuaian umum tanpa batch spesifik: potong / tambah dari batch tertua
+                    if (in_array($request->type, ['waste', 'opname_loss'])) {
+                        if ($material->stock < $qty) {
+                            throw new \Exception("Jumlah penyesuaian melampaui total stok bahan ({$material->stock} {$material->recipe_unit})!");
+                        }
 
-                    InventoryLog::create([
-                        'material_id' => $material->id,
-                        'batch_id' => $batch->id,
-                        'type' => 'in',
-                        'quantity' => $qty,
-                        'stock_after' => $material->fresh()->stock,
-                        'reference' => 'OPNAME GAIN: ' . $request->reason . ' (Batch #' . ($batch->batch_number ?? $batch->id) . ')',
-                    ]);
-                }
-            } else {
-                // Penyesuaian umum tanpa batch spesifik: potong / tambah dari batch tertua
-                if (in_array($request->type, ['waste', 'opname_loss'])) {
-                    $needed = $qty;
-                    $batches = MaterialBatch::where('material_id', $material->id)
-                        ->where('remaining_qty', '>', 0)
-                        ->orderBy('created_at', 'asc')
-                        ->lockForUpdate()
-                        ->get();
+                        $needed = $qty;
+                        $batches = MaterialBatch::where('material_id', $material->id)
+                            ->where('remaining_qty', '>', 0)
+                            ->orderBy('created_at', 'asc')
+                            ->lockForUpdate()
+                            ->get();
 
-                    foreach ($batches as $b) {
-                        if ($needed <= 0) break;
-                        $deduct = min($b->remaining_qty, $needed);
-                        $b->decrement('remaining_qty', $deduct);
-                        $needed -= $deduct;
+                        foreach ($batches as $b) {
+                            if ($needed <= 0) break;
+                            $deduct = min($b->remaining_qty, $needed);
+                            $b->decrement('remaining_qty', $deduct);
+                            $needed -= $deduct;
+                        }
+
+                        $material->decrement('stock', $qty);
+
+                        InventoryLog::create([
+                            'material_id' => $material->id,
+                            'type' => 'out',
+                            'quantity' => $qty,
+                            'stock_after' => $material->fresh()->stock,
+                            'reference' => strtoupper($request->type) . ': ' . $request->reason,
+                        ]);
+                    } else {
+                        // Buat batch baru untuk selisih lebih
+                        $newBatch = MaterialBatch::create([
+                            'material_id' => $material->id,
+                            'batch_number' => 'OPNAME-' . date('YmdHis'),
+                            'initial_qty' => $qty,
+                            'remaining_qty' => $qty,
+                            'purchase_price' => 0,
+                            'expired_date' => Carbon::now()->addMonths(3),
+                        ]);
+
+                        $material->increment('stock', $qty);
+
+                        InventoryLog::create([
+                            'material_id' => $material->id,
+                            'batch_id' => $newBatch->id,
+                            'type' => 'in',
+                            'quantity' => $qty,
+                            'stock_after' => $material->fresh()->stock,
+                            'reference' => 'OPNAME GAIN: ' . $request->reason,
+                        ]);
                     }
-
-                    $material->decrement('stock', $qty);
-
-                    InventoryLog::create([
-                        'material_id' => $material->id,
-                        'type' => 'out',
-                        'quantity' => $qty,
-                        'stock_after' => $material->fresh()->stock,
-                        'reference' => strtoupper($request->type) . ': ' . $request->reason,
-                    ]);
-                } else {
-                    // Buat batch baru untuk selisih lebih
-                    $newBatch = MaterialBatch::create([
-                        'material_id' => $material->id,
-                        'batch_number' => 'OPNAME-' . date('YmdHis'),
-                        'initial_qty' => $qty,
-                        'remaining_qty' => $qty,
-                        'purchase_price' => 0,
-                        'expired_date' => Carbon::now()->addMonths(3),
-                    ]);
-
-                    $material->increment('stock', $qty);
-
-                    InventoryLog::create([
-                        'material_id' => $material->id,
-                        'batch_id' => $newBatch->id,
-                        'type' => 'in',
-                        'quantity' => $qty,
-                        'stock_after' => $material->fresh()->stock,
-                        'reference' => 'OPNAME GAIN: ' . $request->reason,
-                    ]);
                 }
-            }
 
-            ActivityLog::record(
-                'STOCK_OPNAME',
-                "Audit Stok / Waste pada bahan {$material->name} sebanyak {$qty} {$material->recipe_unit}. Tipe: {$request->type}. Alasan: {$request->reason}"
-            );
-        });
+                ActivityLog::record(
+                    'STOCK_OPNAME',
+                    "Audit Stok / Waste pada bahan {$material->name} sebanyak {$qty} {$material->recipe_unit}. Tipe: {$request->type}. Alasan: {$request->reason}"
+                );
+            });
 
-        return redirect()->route('batches.index')->with('success', 'Penyesuaian stok / waste log berhasil diproses.');
+            return redirect()->route('batches.index')->with('success', 'Penyesuaian stok / waste log berhasil diproses.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', $e->getMessage());
+        }
     }
 }

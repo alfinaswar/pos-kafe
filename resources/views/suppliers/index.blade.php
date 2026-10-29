@@ -26,15 +26,6 @@
         </div>
     </div>
     <div class="card-body">
-        @if ($message = Session::get('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ $message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-        @endif
-
         <table id="suppliers-table" class="table table-bordered table-striped table-hover dt-responsive nowrap" style="width:100%">
             <thead>
                 <tr>
@@ -103,11 +94,11 @@
                                     showConfirmButton: false
                                 });
                             },
-                            error: function () {
+                            error: function (xhr) {
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'Error!',
-                                    text: 'Failed to delete supplier.'
+                                    text: (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Failed to delete supplier.'
                                 });
                             }
                         });

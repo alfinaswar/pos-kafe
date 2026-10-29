@@ -54,10 +54,16 @@ class SupplierController extends Controller
             'address' => 'nullable|string',
         ]);
 
-        Supplier::create($request->all());
+        try {
+            Supplier::create($request->all());
 
-        return redirect()->route('suppliers.index')
-            ->with('success', 'Supplier created successfully.');
+            return redirect()->route('suppliers.index')
+                ->with('success', 'Supplier created successfully.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal menambahkan supplier: ' . $e->getMessage());
+        }
     }
 
     public function edit(Supplier $supplier): View
@@ -73,24 +79,46 @@ class SupplierController extends Controller
             'address' => 'nullable|string',
         ]);
 
-        $supplier->update($request->all());
+        try {
+            $supplier->update($request->all());
 
-        return redirect()->route('suppliers.index')
-            ->with('success', 'Supplier updated successfully.');
+            return redirect()->route('suppliers.index')
+                ->with('success', 'Supplier updated successfully.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal memperbarui supplier: ' . $e->getMessage());
+        }
     }
 
     public function destroy(Request $request, Supplier $supplier)
     {
-        $supplier->delete();
+        try {
+            if ($supplier->purchases()->count() > 0) {
+                throw new \Exception('Supplier tidak dapat dihapus karena memiliki riwayat Purchase Order.');
+            }
 
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Supplier deleted successfully'
-            ]);
+            $supplier->delete();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Supplier deleted successfully'
+                ]);
+            }
+
+            return redirect()->route('suppliers.index')
+                ->with('success', 'Supplier deleted successfully.');
+        } catch (\Throwable $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
+
+            return redirect()->route('suppliers.index')
+                ->with('error', $e->getMessage());
         }
-
-        return redirect()->route('suppliers.index')
-            ->with('success', 'Supplier deleted successfully.');
     }
 }

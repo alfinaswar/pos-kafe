@@ -68,13 +68,19 @@ class MaterialController extends Controller
             'reorder_point' => 'required|numeric|min:0',
         ]);
 
-        $input = $request->all();
-        $input['stock'] = $request->input('stock', 0);
+        try {
+            $input = $request->all();
+            $input['stock'] = $request->input('stock', 0);
 
-        Material::create($input);
+            Material::create($input);
 
-        return redirect()->route('materials.index')
-            ->with('success', 'Material created successfully.');
+            return redirect()->route('materials.index')
+                ->with('success', 'Material created successfully.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal menambahkan bahan baku: ' . $e->getMessage());
+        }
     }
 
     public function edit(Material $material): View
@@ -93,24 +99,49 @@ class MaterialController extends Controller
             'reorder_point' => 'required|numeric|min:0',
         ]);
 
-        $material->update($request->except(['stock']));
+        try {
+            $material->update($request->except(['stock']));
 
-        return redirect()->route('materials.index')
-            ->with('success', 'Material updated successfully.');
+            return redirect()->route('materials.index')
+                ->with('success', 'Material updated successfully.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal memperbarui bahan baku: ' . $e->getMessage());
+        }
     }
 
     public function destroy(Request $request, Material $material)
     {
-        $material->delete();
+        try {
+            if ($material->recipeItems()->count() > 0) {
+                throw new \Exception('Bahan baku tidak dapat dihapus karena masih digunakan pada menu/resep.');
+            }
+            if ($material->batches()->count() > 0) {
+                throw new \Exception('Bahan baku tidak dapat dihapus karena memiliki riwayat batch inventaris.');
+            }
 
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Material deleted successfully'
-            ]);
+            $material->delete();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Material deleted successfully'
+                ]);
+            }
+
+            return redirect()->route('materials.index')
+                ->with('success', 'Material deleted successfully.');
+        } catch (\Throwable $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
+
+            return redirect()->route('materials.index')
+                ->with('error', $e->getMessage());
         }
-
-        return redirect()->route('materials.index')
-            ->with('success', 'Material deleted successfully.');
     }
 }

@@ -25,13 +25,6 @@
         </div>
     </div>
     <div class="card-body">
-        @if ($message = Session::get('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ $message }}
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
-            </div>
-        @endif
-
         <table id="purchases-table" class="table table-bordered table-striped table-hover dt-responsive nowrap" style="width:100%">
             <thead>
                 <tr>

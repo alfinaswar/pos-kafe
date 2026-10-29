@@ -83,14 +83,20 @@ class UserController extends Controller
             'roles' => 'required'
         ]);
     
-        $input = $request->all();
-        $input['password'] = Hash::make($input['password']);
-    
-        $user = User::create($input);
-        $user->assignRole($request->input('roles'));
-    
-        return redirect()->route('users.index')
-                        ->with('success','User created successfully');
+        try {
+            $input = $request->all();
+            $input['password'] = Hash::make($input['password']);
+
+            $user = User::create($input);
+            $user->assignRole($request->input('roles'));
+
+            return redirect()->route('users.index')
+                            ->with('success','User created successfully');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal menambahkan user: ' . $e->getMessage());
+        }
     }
     
     /**
@@ -139,23 +145,29 @@ class UserController extends Controller
             'roles' => 'required'
         ]);
     
-        $input = $request->all();
-        if(!empty($input['password'])){ 
-            $input['password'] = Hash::make($input['password']);
-        }else{
-            $input = Arr::except($input,array('password'));    
+        try {
+            $input = $request->all();
+            if(!empty($input['password'])){ 
+                $input['password'] = Hash::make($input['password']);
+            }else{
+                $input = Arr::except($input,array('password'));    
+            }
+
+            $user = User::find($id);
+            $user->update($input);
+            DB::table('model_has_roles')->where('model_id',$id)->delete();
+
+            $user->assignRole($request->input('roles'));
+
+            return redirect()->route('users.index')
+                            ->with('success','User updated successfully');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal memperbarui user: ' . $e->getMessage());
         }
-    
-        $user = User::find($id);
-        $user->update($input);
-        DB::table('model_has_roles')->where('model_id',$id)->delete();
-    
-        $user->assignRole($request->input('roles'));
-    
-        return redirect()->route('users.index')
-                        ->with('success','User updated successfully');
     }
-    
+
     /**
      * Remove the specified resource from storage.
      *
@@ -164,14 +176,38 @@ class UserController extends Controller
      */
     public function destroy(Request $request, $id)
     {
-        User::find($id)->delete();
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'User deleted successfully'
-            ]);
+        try {
+            $user = User::findOrFail($id);
+
+            if (auth()->id() == $id) {
+                throw new \Exception('Anda tidak dapat menghapus akun Anda sendiri.');
+            }
+
+            if ($user->shifts()->count() > 0 || $user->sales()->count() > 0) {
+                throw new \Exception('User tidak dapat dihapus karena memiliki riwayat shift atau transaksi penjualan.');
+            }
+
+            $user->delete();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'User deleted successfully'
+                ]);
+            }
+
+            return redirect()->route('users.index')
+                            ->with('success','User deleted successfully');
+        } catch (\Throwable $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
+
+            return redirect()->route('users.index')
+                            ->with('error', $e->getMessage());
         }
-        return redirect()->route('users.index')
-                        ->with('success','User deleted successfully');
     }
 }

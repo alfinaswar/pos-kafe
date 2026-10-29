@@ -69,30 +69,36 @@ class ProductController extends Controller
             'materials.*.qty' => 'required_with:materials|numeric|min:0.01',
         ]);
 
-        DB::transaction(function () use ($request) {
-            $product = Product::create([
-                'name' => $request->name,
-                'category' => $request->category,
-                'price' => $request->price,
-                'detail' => $request->detail,
-            ]);
+        try {
+            DB::transaction(function () use ($request) {
+                $product = Product::create([
+                    'name' => $request->name,
+                    'category' => $request->category,
+                    'price' => $request->price,
+                    'detail' => $request->detail,
+                ]);
 
-            // Simpan Bill of Materials (Resep)
-            if ($request->has('materials')) {
-                foreach ($request->materials as $mat) {
-                    if (!empty($mat['id']) && !empty($mat['qty'])) {
-                        RecipeItem::create([
-                            'product_id' => $product->id,
-                            'material_id' => $mat['id'],
-                            'quantity' => $mat['qty']
-                        ]);
+                // Simpan Bill of Materials (Resep)
+                if ($request->has('materials')) {
+                    foreach ($request->materials as $mat) {
+                        if (!empty($mat['id']) && !empty($mat['qty'])) {
+                            RecipeItem::create([
+                                'product_id' => $product->id,
+                                'material_id' => $mat['id'],
+                                'quantity' => $mat['qty']
+                            ]);
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        return redirect()->route('products.index')
-            ->with('success', 'Product and Recipe (BOM) saved successfully.');
+            return redirect()->route('products.index')
+                ->with('success', 'Product and Recipe (BOM) saved successfully.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal menyimpan menu: ' . $e->getMessage());
+        }
     }
 
     public function show(Product $product): View
@@ -120,46 +126,68 @@ class ProductController extends Controller
             'materials.*.qty' => 'required_with:materials|numeric|min:0.01',
         ]);
 
-        DB::transaction(function () use ($request, $product) {
-            $product->update([
-                'name' => $request->name,
-                'category' => $request->category,
-                'price' => $request->price,
-                'detail' => $request->detail,
-            ]);
+        try {
+            DB::transaction(function () use ($request, $product) {
+                $product->update([
+                    'name' => $request->name,
+                    'category' => $request->category,
+                    'price' => $request->price,
+                    'detail' => $request->detail,
+                ]);
 
-            // Sync Resep
-            RecipeItem::where('product_id', $product->id)->delete();
+                // Sync Resep
+                RecipeItem::where('product_id', $product->id)->delete();
 
-            if ($request->has('materials')) {
-                foreach ($request->materials as $mat) {
-                    if (!empty($mat['id']) && !empty($mat['qty'])) {
-                        RecipeItem::create([
-                            'product_id' => $product->id,
-                            'material_id' => $mat['id'],
-                            'quantity' => $mat['qty']
-                        ]);
+                if ($request->has('materials')) {
+                    foreach ($request->materials as $mat) {
+                        if (!empty($mat['id']) && !empty($mat['qty'])) {
+                            RecipeItem::create([
+                                'product_id' => $product->id,
+                                'material_id' => $mat['id'],
+                                'quantity' => $mat['qty']
+                            ]);
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        return redirect()->route('products.index')
-            ->with('success', 'Product and Recipe updated successfully.');
+            return redirect()->route('products.index')
+                ->with('success', 'Product and Recipe updated successfully.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal memperbarui menu: ' . $e->getMessage());
+        }
     }
 
     public function destroy(Request $request, Product $product)
     {
-        $product->delete();
+        try {
+            if ($product->saleItems()->count() > 0) {
+                throw new \Exception('Menu tidak dapat dihapus karena memiliki riwayat transaksi penjualan.');
+            }
 
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Product deleted successfully'
-            ]);
+            $product->delete();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Product deleted successfully'
+                ]);
+            }
+
+            return redirect()->route('products.index')
+                ->with('success', 'Product deleted successfully.');
+        } catch (\Throwable $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
+
+            return redirect()->route('products.index')
+                ->with('error', $e->getMessage());
         }
-
-        return redirect()->route('products.index')
-            ->with('success', 'Product deleted successfully.');
     }
 }

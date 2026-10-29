@@ -6,6 +6,8 @@
 /storage/*.key
 /vendor
 .env
+.prd_sistem_informasi_kafe.md
+.prd_sistem_update_fitur.md
 .env.backup
 .env.production
 .phpunit.result.cache

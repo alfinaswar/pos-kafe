@@ -9,19 +9,6 @@
 @endsection
 
 @section('content')
-@if ($message = Session::get('success'))
-    <div class="alert alert-success alert-dismissible fade show">
-        {{ $message }}
-        <button type="button" class="close" data-dismiss="alert">&times;</button>
-    </div>
-@endif
-@if ($message = Session::get('error'))
-    <div class="alert alert-danger alert-dismissible fade show">
-        {{ $message }}
-        <button type="button" class="close" data-dismiss="alert">&times;</button>
-    </div>
-@endif
-
 <div class="invoice p-3 mb-3">
     <!-- title row -->
     <div class="row">

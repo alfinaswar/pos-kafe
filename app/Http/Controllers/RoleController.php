@@ -88,12 +88,18 @@ class RoleController extends Controller
             'name' => 'required|unique:roles,name',
             'permission' => 'required',
         ]);
-    
-        $role = Role::create(['name' => $request->input('name')]);
-        $role->syncPermissions($request->input('permission'));
-    
-        return redirect()->route('roles.index')
-                        ->with('success','Role created successfully');
+
+        try {
+            $role = Role::create(['name' => $request->input('name')]);
+            $role->syncPermissions($request->input('permission'));
+
+            return redirect()->route('roles.index')
+                            ->with('success','Role created successfully');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal membuat role: ' . $e->getMessage());
+        }
     }
     /**
      * Display the specified resource.
@@ -142,14 +148,20 @@ class RoleController extends Controller
             'permission' => 'required',
         ]);
     
-        $role = Role::find($id);
-        $role->name = $request->input('name');
-        $role->save();
-    
-        $role->syncPermissions($request->input('permission'));
-    
-        return redirect()->route('roles.index')
-                        ->with('success','Role updated successfully');
+        try {
+            $role = Role::find($id);
+            $role->name = $request->input('name');
+            $role->save();
+
+            $role->syncPermissions($request->input('permission'));
+
+            return redirect()->route('roles.index')
+                            ->with('success','Role updated successfully');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal memperbarui role: ' . $e->getMessage());
+        }
     }
     /**
      * Remove the specified resource from storage.
@@ -159,14 +171,34 @@ class RoleController extends Controller
      */
     public function destroy(Request $request, $id)
     {
-        DB::table("roles")->where('id',$id)->delete();
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Role deleted successfully'
-            ]);
+        try {
+            $role = Role::findOrFail($id);
+            if (in_array(strtolower($role->name), ['owner', 'admin'])) {
+                throw new \Exception('Role inti (' . $role->name . ') tidak dapat dihapus.');
+            }
+            if ($role->users()->count() > 0) {
+                throw new \Exception('Role tidak dapat dihapus karena masih digunakan oleh user.');
+            }
+
+            $role->delete();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Role deleted successfully'
+                ]);
+            }
+            return redirect()->route('roles.index')
+                            ->with('success','Role deleted successfully');
+        } catch (\Throwable $e) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
+            }
+            return redirect()->route('roles.index')
+                            ->with('error', $e->getMessage());
         }
-        return redirect()->route('roles.index')
-                        ->with('success','Role deleted successfully');
     }
 }

@@ -92,23 +92,29 @@ class CashierShiftController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        $activeShift = CashierShift::where('user_id', auth()->id())->where('status', 'open')->first();
-        if ($activeShift) {
-            return redirect()->route('pos.index')->with('error', 'Anda masih memiliki shift aktif.');
+        try {
+            $activeShift = CashierShift::where('user_id', auth()->id())->where('status', 'open')->first();
+            if ($activeShift) {
+                return redirect()->route('pos.index')->with('error', 'Anda masih memiliki shift aktif.');
+            }
+
+            $shift = CashierShift::create([
+                'user_id' => auth()->id(),
+                'outlet_id' => $request->outlet_id ?? auth()->user()->outlet_id,
+                'start_cash' => $request->start_cash,
+                'expected_cash' => $request->start_cash,
+                'status' => 'open',
+                'notes' => $request->notes,
+            ]);
+
+            ActivityLog::record('OPEN_SHIFT', "Kasir " . auth()->user()->name . " membuka shift #{$shift->id} dengan modal awal Rp " . number_format($request->start_cash, 0, ',', '.'));
+
+            return redirect()->route('pos.index')->with('success', 'Shift kasir berhasil dibuka. Selamat bertransaksi!');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal membuka shift kasir: ' . $e->getMessage());
         }
-
-        $shift = CashierShift::create([
-            'user_id' => auth()->id(),
-            'outlet_id' => $request->outlet_id ?? auth()->user()->outlet_id,
-            'start_cash' => $request->start_cash,
-            'expected_cash' => $request->start_cash,
-            'status' => 'open',
-            'notes' => $request->notes,
-        ]);
-
-        ActivityLog::record('OPEN_SHIFT', "Kasir " . auth()->user()->name . " membuka shift #{$shift->id} dengan modal awal Rp " . number_format($request->start_cash, 0, ',', '.'));
-
-        return redirect()->route('pos.index')->with('success', 'Shift kasir berhasil dibuka. Selamat bertransaksi!');
     }
 
     public function show(CashierShift $shift): View
@@ -146,32 +152,38 @@ class CashierShiftController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        DB::transaction(function () use ($request, $shift) {
-            $pettyIn = (float) $shift->pettyCashes()->where('type', 'in')->sum('amount');
-            $pettyOut = (float) $shift->pettyCashes()->where('type', 'out')->sum('amount');
-            $expectedCash = (float) $shift->start_cash + (float) $shift->total_sales_cash + $pettyIn - $pettyOut;
-            $actualCash = (float) $request->actual_cash;
-            $variance = $actualCash - $expectedCash;
+        try {
+            DB::transaction(function () use ($request, $shift) {
+                $pettyIn = (float) $shift->pettyCashes()->where('type', 'in')->sum('amount');
+                $pettyOut = (float) $shift->pettyCashes()->where('type', 'out')->sum('amount');
+                $expectedCash = (float) $shift->start_cash + (float) $shift->total_sales_cash + $pettyIn - $pettyOut;
+                $actualCash = (float) $request->actual_cash;
+                $variance = $actualCash - $expectedCash;
 
-            $shift->update([
-                'end_cash' => $actualCash,
-                'expected_cash' => $expectedCash,
-                'actual_cash' => $actualCash,
-                'variance' => $variance,
-                'status' => 'closed',
-                'closed_at' => now(),
-                'notes' => ($shift->notes ? $shift->notes . " | " : "") . ($request->notes ?? 'Tutup Shift'),
-            ]);
+                $shift->update([
+                    'end_cash' => $actualCash,
+                    'expected_cash' => $expectedCash,
+                    'actual_cash' => $actualCash,
+                    'variance' => $variance,
+                    'status' => 'closed',
+                    'closed_at' => now(),
+                    'notes' => ($shift->notes ? $shift->notes . " | " : "") . ($request->notes ?? 'Tutup Shift'),
+                ]);
 
-            ActivityLog::record(
-                'CLOSE_SHIFT',
-                "Tutup shift #{$shift->id}: Ekspektasi Rp " . number_format($expectedCash, 0, ',', '.') .
-                ", Aktual Rp " . number_format($actualCash, 0, ',', '.') .
-                ", Selisih Rp " . number_format($variance, 0, ',', '.')
-            );
-        });
+                ActivityLog::record(
+                    'CLOSE_SHIFT',
+                    "Tutup shift #{$shift->id}: Ekspektasi Rp " . number_format($expectedCash, 0, ',', '.') .
+                    ", Aktual Rp " . number_format($actualCash, 0, ',', '.') .
+                    ", Selisih Rp " . number_format($variance, 0, ',', '.')
+                );
+            });
 
-        return redirect()->route('shifts.show', $shift->id)->with('success', 'Shift kasir berhasil ditutup dan direkonsiliasi.');
+            return redirect()->route('shifts.show', $shift->id)->with('success', 'Shift kasir berhasil ditutup dan direkonsiliasi.');
+        } catch (\Throwable $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal menutup shift: ' . $e->getMessage());
+        }
     }
 
     // Petty Cash Store via Ajax or Form
@@ -184,40 +196,47 @@ class CashierShiftController extends Controller
             'description' => 'required|string|max:255',
         ]);
 
-        $shift = CashierShift::findOrFail($request->shift_id);
-        if ($shift->status !== 'open') {
-            if ($request->ajax()) {
-                return response()->json(['success' => false, 'message' => 'Shift sudah ditutup.'], 422);
+        try {
+            $shift = CashierShift::findOrFail($request->shift_id);
+            if ($shift->status !== 'open') {
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => 'Shift sudah ditutup.'], 422);
+                }
+                return back()->with('error', 'Shift sudah ditutup.');
             }
-            return back()->with('error', 'Shift sudah ditutup.');
-        }
 
-        $petty = PettyCash::create([
-            'user_id' => auth()->id(),
-            'shift_id' => $shift->id,
-            'type' => $request->type,
-            'amount' => $request->amount,
-            'description' => $request->description,
-        ]);
-
-        // Update expected cash on shift
-        $shift->expected_cash = $shift->calculateExpectedCash();
-        $shift->save();
-
-        ActivityLog::record(
-            'PETTY_CASH',
-            "Kas kecil ({$request->type}) Rp " . number_format($request->amount, 0, ',', '.') . ": {$request->description}"
-        );
-
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Kas kecil berhasil dicatat.',
-                'petty' => $petty,
-                'new_expected_cash' => $shift->expected_cash
+            $petty = PettyCash::create([
+                'user_id' => auth()->id(),
+                'shift_id' => $shift->id,
+                'type' => $request->type,
+                'amount' => $request->amount,
+                'description' => $request->description,
             ]);
-        }
 
-        return back()->with('success', 'Kas kecil berhasil dicatat.');
+            // Update expected cash on shift
+            $shift->expected_cash = $shift->calculateExpectedCash();
+            $shift->save();
+
+            ActivityLog::record(
+                'PETTY_CASH',
+                "Kas kecil ({$request->type}) Rp " . number_format($request->amount, 0, ',', '.') . ": {$request->description}"
+            );
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Kas kecil berhasil dicatat.',
+                    'petty' => $petty,
+                    'new_expected_cash' => $shift->expected_cash
+                ]);
+            }
+
+            return back()->with('success', 'Kas kecil berhasil dicatat.');
+        } catch (\Throwable $e) {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+            return back()->with('error', 'Gagal mencatat kas kecil: ' . $e->getMessage());
+        }
     }
 }

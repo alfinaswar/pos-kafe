@@ -26,13 +26,6 @@
         </div>
     </div>
     <div class="card-body">
-        @if ($message = Session::get('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ $message }}
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
-            </div>
-        @endif
-
         <table id="products-table" class="table table-bordered table-striped table-hover dt-responsive nowrap" style="width:100%">
             <thead>
                 <tr>
@@ -103,11 +96,11 @@
                                     showConfirmButton: false
                                 });
                             },
-                            error: function () {
+                            error: function (xhr) {
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'Error!',
-                                    text: 'Failed to delete product.'
+                                    text: (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Failed to delete product.'
                                 });
                             }
                         });
